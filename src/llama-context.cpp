@@ -1,5 +1,10 @@
 #include "llama-context.h"
 
+#ifdef LLAMA_DEBUG_SUPPORT
+#include "llama-debug.h"
+#include <iostream>
+#endif
+
 #include "llama-arch.h"
 #include "llama-impl.h"
 #include "llama-batch.h"
@@ -22,7 +27,11 @@ llama_context::llama_context(
         const llama_model & model,
               llama_context_params params) :
     model(model),
-    balloc(std::make_unique<llama_batch_allocr>(model.hparams.n_pos_per_embd())) {
+    balloc(std::make_unique<llama_batch_allocr>(model.hparams.n_pos_per_embd()))
+#ifdef LLAMA_DEBUG_SUPPORT
+    , debug_mgr(std::make_unique<llama_debug_manager>())
+#endif
+{
     // TODO warning when creating llama_context with awkward ctx size that is not a power of 2,
     //     may need to be backend-dependent
     LLAMA_LOG_INFO("%s: constructing llama_context\n", __func__);
@@ -1391,6 +1400,24 @@ int llama_context::decode(const llama_batch & batch_inp) {
     const int64_t n_vocab = vocab.n_tokens();
     const int64_t n_embd  = hparams.n_embd_inp();
 
+#ifdef LLAMA_DEBUG_SUPPORT
+    // Token 开始事件（不暂停）
+    if (debug_mgr && debug_mgr->is_enabled() &&
+        (debug_mgr->get_granularity() & LLAMA_DEBUG_TOKEN)) {
+
+        llama_debug_token_event event = {
+            .token_ids = batch_inp.token,
+            .n_tokens = batch_inp.n_tokens,
+            .positions = batch_inp.pos,
+            .phase = "decode_start",
+            .logits = nullptr,
+            .n_vocab = 0
+        };
+        debug_mgr->dispatch_event(LLAMA_DEBUG_EVENT_TOKEN_START, &event);
+        // 注意：不在 START 时暂停，只在 END 时暂停
+    }
+#endif
+
     // when computing embeddings, all tokens are output
     const bool output_all   = cparams.embeddings;
     const bool has_samplers = !sampling.samplers.empty();
@@ -1716,6 +1743,30 @@ int llama_context::decode(const llama_batch & batch_inp) {
             }
         }
     }
+
+#ifdef LLAMA_DEBUG_SUPPORT
+    // Token 结束事件
+    if (debug_mgr && debug_mgr->is_enabled() &&
+        (debug_mgr->get_granularity() & LLAMA_DEBUG_TOKEN)) {
+
+        // 获取最后一个 token 的 logits
+        const float *logits_ptr = nullptr;
+        if (batch_inp.n_tokens > 0 && logits) {
+            logits_ptr = logits;
+        }
+
+        llama_debug_token_event event = {
+            .token_ids = batch_inp.token,
+            .n_tokens = batch_inp.n_tokens,
+            .positions = batch_inp.pos,
+            .phase = "decode_end",
+            .logits = logits_ptr,
+            .n_vocab = (int32_t)n_vocab
+        };
+        debug_mgr->dispatch_event(LLAMA_DEBUG_EVENT_TOKEN_END, &event);
+        debug_mgr->wait_if_paused();
+    }
+#endif
 
     // wait for the computation to finish (automatically done when obtaining the model output)
     //synchronize();

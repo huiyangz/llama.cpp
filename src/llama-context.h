@@ -5,6 +5,10 @@
 #include "llama-graph.h"
 #include "llama-adapter.h"
 
+#ifdef LLAMA_DEBUG_SUPPORT
+#include "llama-debug.h"
+#endif
+
 #include "ggml-cpp.h"
 #include "ggml-opt.h"
 
@@ -357,4 +361,11 @@ private:
     mutable int32_t n_eval   = 0; // number of eval calls
 
     mutable int32_t n_reused = 0; // number of times the previous graph was reused
+
+#ifdef LLAMA_DEBUG_SUPPORT
+    std::unique_ptr<llama_debug_manager> debug_mgr;
+public:
+    llama_debug_manager *get_debug_manager() { return debug_mgr.get(); }
+    const llama_debug_manager *get_debug_manager() const { return debug_mgr.get(); }
+#endif
 };

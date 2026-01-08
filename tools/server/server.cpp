@@ -7,6 +7,11 @@
 #include "llama.h"
 #include "log.h"
 
+#ifdef LLAMA_DEBUG_SUPPORT
+#include "llama-debug.h"
+#include "llama-context.h"
+#endif
+
 #include <atomic>
 #include <exception>
 #include <signal.h>
@@ -195,6 +200,85 @@ int main(int argc, char ** argv) {
     // Save & load slots
     ctx_http.get ("/slots",               ex_wrapper(routes.get_slots));
     ctx_http.post("/slots/:id_slot",      ex_wrapper(routes.post_slots));
+
+#ifdef LLAMA_DEBUG_SUPPORT
+    // Debug control endpoints
+    ctx_http.post("/debug/pause", ex_wrapper([&ctx_server](const server_http_req & req) -> server_http_res_ptr {
+        auto res = std::make_unique<server_http_res>();
+        auto *ctx = ctx_server.get_llama_context();
+        if (!ctx || !ctx->get_debug_manager()) {
+            res->status = 501;
+            res->data = R"({"error": "Debug support not enabled"})";
+            return res;
+        }
+        ctx->get_debug_manager()->pause();
+        res->status = 200;
+        res->data = R"({"status": "paused"})";
+        return res;
+    }));
+
+    ctx_http.post("/debug/resume", ex_wrapper([&ctx_server](const server_http_req & req) -> server_http_res_ptr {
+        auto res = std::make_unique<server_http_res>();
+        auto *ctx = ctx_server.get_llama_context();
+        if (!ctx || !ctx->get_debug_manager()) {
+            res->status = 501;
+            res->data = R"({"error": "Debug support not enabled"})";
+            return res;
+        }
+        ctx->get_debug_manager()->resume();
+        res->status = 200;
+        res->data = R"({"status": "resumed"})";
+        return res;
+    }));
+
+    ctx_http.post("/debug/step", ex_wrapper([&ctx_server](const server_http_req & req) -> server_http_res_ptr {
+        auto res = std::make_unique<server_http_res>();
+        auto *ctx = ctx_server.get_llama_context();
+        if (!ctx || !ctx->get_debug_manager()) {
+            res->status = 501;
+            res->data = R"({"error": "Debug support not enabled"})";
+            return res;
+        }
+        ctx->get_debug_manager()->step();
+        res->status = 200;
+        res->data = R"({"status": "stepped"})";
+        return res;
+    }));
+
+    ctx_http.post("/debug/enable", ex_wrapper([&ctx_server](const server_http_req & req) -> server_http_res_ptr {
+        auto res = std::make_unique<server_http_res>();
+        auto *ctx = ctx_server.get_llama_context();
+        if (!ctx || !ctx->get_debug_manager()) {
+            res->status = 501;
+            res->data = R"({"error": "Debug support not enabled"})";
+            return res;
+        }
+        ctx->get_debug_manager()->enable(LLAMA_DEBUG_TOKEN);
+        res->status = 200;
+        res->data = R"({"status": "enabled", "granularity": "token"})";
+        return res;
+    }));
+
+    ctx_http.get("/debug/state", ex_wrapper([&ctx_server](const server_http_req & req) -> server_http_res_ptr {
+        auto res = std::make_unique<server_http_res>();
+        auto *ctx = ctx_server.get_llama_context();
+        if (!ctx || !ctx->get_debug_manager()) {
+            res->status = 501;
+            res->data = R"({"error": "Debug support not enabled"})";
+            return res;
+        }
+        auto *debug_mgr = ctx->get_debug_manager();
+        char state_str[256];
+        snprintf(state_str, sizeof(state_str),
+            R"({"enabled": %s, "paused": %s, "granularity": "token"})",
+            debug_mgr->is_enabled() ? "true" : "false",
+            debug_mgr->is_paused() ? "true" : "false"
+        );
+        res->status = 200;
+        res->data = state_str;
+        return res;
+    }));
+#endif
 
     //
     // Start the server

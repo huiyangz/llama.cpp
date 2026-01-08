@@ -116,6 +116,13 @@ option(LLAMA_HTTPLIB    "llama: if libcurl is disabled, use httplib to download 
 option(LLAMA_OPENSSL    "llama: use openssl to support HTTPS" OFF)
 option(LLAMA_LLGUIDANCE "llama-common: include LLGuidance library for structured output in common utils" OFF)
 
+# debug support
+option(LLAMA_DEBUG_SUPPORT "llama: enable debugger support" OFF)
+if(LLAMA_DEBUG_SUPPORT)
+    add_compile_definitions(LLAMA_DEBUG_SUPPORT)
+    message(STATUS "LLAMA debugger support: ENABLED")
+endif()
+
 # Required for relocatable CMake package
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/build-info.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)

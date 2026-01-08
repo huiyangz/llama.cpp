@@ -140,6 +140,14 @@ add_library(llama
             models/graph-context-mamba.cpp
             )
 
+# Debug support
+if(LLAMA_DEBUG_SUPPORT)
+    target_sources(llama PRIVATE
+        llama-debug.cpp
+        llama-debug.h
+    )
+endif()
+
 set_target_properties(llama PROPERTIES
     VERSION ${LLAMA_INSTALL_VERSION}
     SOVERSION 0
