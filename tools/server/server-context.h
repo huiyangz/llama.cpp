@@ -106,6 +106,8 @@ struct server_routes {
   server_http_context::handler_t post_embeddings;
   server_http_context::handler_t post_embeddings_oai;
   server_http_context::handler_t post_rerank;
+  server_http_context::handler_t get_debug_state;
+  server_http_context::handler_t post_debug_control;
 
 private:
   std::unique_ptr<server_res_generator> handle_completions_impl(

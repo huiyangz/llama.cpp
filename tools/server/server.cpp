@@ -203,6 +203,8 @@ int main(int argc, char **argv) {
       ex_wrapper(routes.get_models)); // ollama specific endpoint. public
                                       // endpoint (no API key check)
   ctx_http.get("/api/debug/model-info", ex_wrapper(routes.get_model_info));
+  ctx_http.get("/api/debug/state", ex_wrapper(routes.get_debug_state));
+  ctx_http.post("/api/debug/control", ex_wrapper(routes.post_debug_control));
   ctx_http.post("/completion", ex_wrapper(routes.post_completions)); // legacy
   ctx_http.post("/completions", ex_wrapper(routes.post_completions));
   ctx_http.post("/v1/completions", ex_wrapper(routes.post_completions_oai));

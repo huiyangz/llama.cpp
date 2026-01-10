@@ -4,6 +4,8 @@
 #include "server-queue.h"
 #include "server-task.h"
 
+#include "../../src/llama-context.h"
+#include "../../src/llama-debug.h"
 #include "../../src/llama-model.h"
 #include "arg.h"
 #include "common.h"
@@ -518,6 +520,7 @@ public:
   llama_model *model = nullptr;
   mtmd_context *mctx = nullptr;
   const llama_vocab *vocab = nullptr;
+  llama_context *ctx = nullptr;
 
   server_queue queue_tasks;
   server_response queue_results;
@@ -543,8 +546,6 @@ private:
   // etc.
   common_init_result_ptr llama_init;
   common_init_result_ptr llama_init_dft;
-
-  llama_context *ctx = nullptr;
 
   bool vocab_dft_compatible = true;
 
@@ -4116,6 +4117,14 @@ void server_routes::init_routes() {
       return j;
     };
 
+    auto debug_mgr =
+        ctx_server.ctx ? ctx_server.ctx->get_debug_manager() : nullptr;
+    if (debug_mgr && !debug_mgr->is_schema_captured()) {
+      if (ctx_server.ctx) {
+        ctx_server.ctx->capture_schema();
+      }
+    }
+
     json root;
     root["model_name"] = model->name;
     root["arch"] = model->arch_name();
@@ -4201,6 +4210,18 @@ void server_routes::init_routes() {
     }
     root["layers"] = layers;
 
+    if (debug_mgr && debug_mgr->is_schema_captured()) {
+      json schema = json::array();
+      for (const auto &node : debug_mgr->get_layer_schema()) {
+        json nj;
+        nj["name"] = node.name;
+        nj["op"] = node.op;
+        nj["inputs"] = node.inputs;
+        schema.push_back(nj);
+      }
+      root["layer_schema"] = schema;
+    }
+
     json globals = json::array();
     auto add_g = [&](const char *role, const ggml_tensor *t) {
       if (t) {
@@ -4219,6 +4240,86 @@ void server_routes::init_routes() {
     root["global_tensors"] = globals;
 
     res->ok(root);
+    return res;
+  };
+
+  this->get_debug_state = [this](const server_http_req &) {
+    auto res = create_response(true);
+    llama_context *ctx = ctx_server.ctx;
+    if (!ctx) {
+      res->error(
+          format_error_response("Context not initialized", ERROR_TYPE_SERVER));
+      return res;
+    }
+
+    auto debug_mgr = ctx->get_debug_manager();
+    if (!debug_mgr) {
+      res->error(format_error_response("Debug manager not initialized",
+                                       ERROR_TYPE_SERVER));
+      return res;
+    }
+
+    json root;
+    root["enabled"] = debug_mgr->is_enabled();
+    root["paused"] = debug_mgr->is_paused();
+    root["granularity"] = (uint32_t)debug_mgr->get_granularity();
+    root["current_layer"] = debug_mgr->get_current_layer();
+    root["current_node"] = debug_mgr->get_current_node();
+    root["current_op"] = debug_mgr->get_current_op();
+    root["current_inputs"] = debug_mgr->get_current_inputs();
+
+    res->ok(root);
+    return res;
+  };
+
+  this->post_debug_control = [this](const server_http_req &req) {
+    auto res = create_response(true);
+    llama_context *ctx = ctx_server.ctx;
+    if (!ctx) {
+      res->error(
+          format_error_response("Context not initialized", ERROR_TYPE_SERVER));
+      return res;
+    }
+
+    auto debug_mgr = ctx->get_debug_manager();
+    if (!debug_mgr) {
+      res->error(format_error_response("Debug manager not initialized",
+                                       ERROR_TYPE_SERVER));
+      return res;
+    }
+
+    const json data = json::parse(req.body);
+    std::string action = data.value("action", "");
+
+    if (action == "enable") {
+      uint32_t g = data.value("granularity", (uint32_t)LLAMA_DEBUG_TOKEN);
+      debug_mgr->enable((llama_debug_granularity)g);
+    } else if (action == "disable") {
+      debug_mgr->disable();
+    } else if (action == "pause") {
+      debug_mgr->pause();
+    } else if (action == "resume") {
+      // "继续": 设置粒度为 NONE 并 resume
+      debug_mgr->set_granularity(LLAMA_DEBUG_NONE);
+      debug_mgr->resume();
+    } else if (action == "next_layer") {
+      debug_mgr->set_granularity(LLAMA_DEBUG_LAYER);
+      debug_mgr->resume();
+    } else if (action == "next_token") {
+      debug_mgr->set_granularity(LLAMA_DEBUG_TOKEN);
+      debug_mgr->resume();
+    } else if (action == "step") {
+      debug_mgr->set_granularity(
+          (llama_debug_granularity)(LLAMA_DEBUG_OPERATION | LLAMA_DEBUG_LAYER |
+                                    LLAMA_DEBUG_TOKEN));
+      debug_mgr->step();
+    } else {
+      res->error(
+          format_error_response("Invalid action", ERROR_TYPE_INVALID_REQUEST));
+      return res;
+    }
+
+    res->ok({{"status", "ok"}});
     return res;
   };
 }
