@@ -37,6 +37,9 @@ namespace console {
     LLAMA_COMMON_ATTRIBUTE_FORMAT(1, 2)
     void update_top_bar(const char * fmt, ...);
 
+    // For testing fixed top functionality
+    void test_fixed_top();
+
     LLAMA_COMMON_ATTRIBUTE_FORMAT(1, 2)
     void log(const char * fmt, ...);
 

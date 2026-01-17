@@ -1127,10 +1127,11 @@ namespace console {
 
     void enable_fixed_top() {
         fixed_top_mode = true;
-        // Save current cursor position and move to top
-        fprintf(out, "\033[s"); // Save cursor position
-        fprintf(out, "\033[H"); // Move to home position (top-left)
-        fprintf(out, "\033[K"); // Clear the line
+        // Clear screen and initialize with a clear top bar
+        fprintf(out, "\033[2J"); // Clear entire screen
+        fprintf(out, "\033[H");  // Move to home position
+        fprintf(out, "\033[K");  // Clear the line
+        fprintf(out, "\r");       // Move cursor to start of line
         fflush(out);
     }
 
@@ -1139,41 +1140,60 @@ namespace console {
             return;
         }
 
-        // Save current cursor position
-        fprintf(out, "\033[s");
+        // Move to absolute position top-left corner (line 1, column 1)
+        fprintf(out, "\033[1G\033[1;0H");
 
-        // Move to the beginning of the top bar
-        fprintf(out, "\033[H");
-
-        // Clear the line
+        // Clear from cursor to end of line
         fprintf(out, "\033[K");
 
-        // Output the top bar content
+        // Output the top bar content with green color
+        fprintf(out, "\033[1;32m"); // Set green color
         va_list args;
         va_start(args, fmt);
         vfprintf(out, fmt, args);
         va_end(args);
+        fprintf(out, "\033[0m"); // Reset color
 
-        // Restore cursor position
-        fprintf(out, "\033[u");
+        // Force the cursor to line 2 below the top bar
+        fprintf(out, "\033[2;1H");
         fflush(out);
     }
 
     void log(const char * fmt, ...) {
         if (fixed_top_mode) {
-            // Move down one line before outputting content
-            // to avoid overwriting the top bar
-            fprintf(out, "\n");
+            // For fixed top mode, all log output must not overwrite the top bar
+            // We need to make sure the cursor is always at line 2 or below
+            va_list args;
+            va_start(args, fmt);
+            vfprintf(out, fmt, args);
+            va_end(args);
+            fflush(out);
+        } else {
+            va_list args;
+            va_start(args, fmt);
+            vfprintf(out, fmt, args);
+            va_end(args);
+            fflush(out);
         }
-
-        va_list args;
-        va_start(args, fmt);
-        vfprintf(out, fmt, args);
-        va_end(args);
-        fflush(out);
     }
 
     void flush() {
         fflush(out);
+    }
+
+    void test_fixed_top() {
+        enable_fixed_top();
+
+        update_top_bar("Test: Prompt: 320.8 t/s | Generation: 22.8 t/s");
+
+        for (int i = 0; i < 5; ++i) {
+            log("Test line %d\n", i+1);
+        }
+
+        update_top_bar("Test: Prompt: 280.5 t/s | Generation: 25.2 t/s");
+
+        for (int i = 5; i < 10; ++i) {
+            log("Another test line %d\n", i+1);
+        }
     }
 }

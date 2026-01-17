@@ -93,7 +93,10 @@ struct cli_context {
         std::string curr_content;
         bool is_thinking = false;
 
-        auto last_update_time = std::chrono::high_resolution_clock::now();
+        // Initial update if fixed top mode is enabled
+        if (params.fixed_top) {
+            console::update_top_bar("Prompt: 0.0 t/s | Generation: 0.0 t/s");
+        }
 
         while (result) {
             if (should_stop()) {
@@ -132,24 +135,18 @@ struct cli_context {
                         console::flush();
                     }
                 }
+
+                // Update top bar with the latest metrics
+                if (params.fixed_top) {
+                    console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s",
+                                           out_timings.prompt_per_second,
+                                           out_timings.predicted_per_second);
+                }
             }
             auto res_final = dynamic_cast<server_task_result_cmpl_final *>(result.get());
             if (res_final) {
                 out_timings = std::move(res_final->timings);
                 break;
-            }
-
-            // Update fixed top bar every 0.5 seconds if enabled
-            if (params.fixed_top) {
-                auto now = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<double> elapsed = now - last_update_time;
-                if (elapsed.count() >= 0.5) {
-                    // Update top bar with performance metrics (KV cache info will be added later)
-                    console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s",
-                                           out_timings.prompt_per_second,
-                                           out_timings.predicted_per_second);
-                    last_update_time = now;
-                }
             }
 
             result = rd.next(should_stop);
@@ -181,6 +178,16 @@ int main(int argc, char ** argv) {
     common_params params;
 
     params.verbosity = LOG_LEVEL_ERROR; // by default, less verbose logs
+
+    // Check for --test-fixed-top before parsing all parameters
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "--test-fixed-top") == 0) {
+            console::init(false, true);
+            console::test_fixed_top();
+            console::cleanup();
+            return 0;
+        }
+    }
 
     if (!common_params_parse(argc, argv, params, LLAMA_EXAMPLE_CLI)) {
         return 1;
