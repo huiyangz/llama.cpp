@@ -29,6 +29,7 @@ namespace statusbar {
 
 // Colors and styles
 #define ANSI_COLOR_CYAN       "\x1b[36m"
+#define ANSI_COLOR_BLUE       "\x1b[34m"
 #define ANSI_COLOR_GREEN      "\x1b[32m"
 #define ANSI_COLOR_YELLOW     "\x1b[33m"
 #define ANSI_COLOR_BOLD       "\x1b[1m"
@@ -94,7 +95,7 @@ static void redraw_status_bar() {
     fprintf(stdout, "\033[1;1H");
     fprintf(stdout, ANSI_CLEAR_LINE);
     if (g_use_color) {
-        fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_GREEN);
+        fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_BLUE);
     }
     fprintf(stdout, "Initializing...");
     if (g_use_color) {
@@ -189,7 +190,7 @@ void update(const metrics_data & data) {
 
     // Set bold and color for the metrics line
     if (g_use_color) {
-        fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_GREEN);
+        fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_BLUE);
     }
 
     // Calculate KV cache percentage

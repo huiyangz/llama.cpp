@@ -1,6 +1,7 @@
 #include "common.h"
 #include "arg.h"
 #include "console.h"
+#include "statusbar.h"
 // #include "log.h"
 
 #include "server-context.h"
@@ -56,12 +57,17 @@ struct cli_context {
     // thread for showing "loading" animation
     std::atomic<bool> loading_show;
 
+    // status bar state
+    bool status_bar_enabled = false;
+
     cli_context(const common_params & params) {
         defaults.sampling    = params.sampling;
         defaults.speculative = params.speculative;
         defaults.n_keep      = params.n_keep;
         defaults.n_predict   = params.n_predict;
         defaults.antiprompt  = params.antiprompt;
+
+        status_bar_enabled = params.status_bar;
 
         defaults.stream = true; // make sure we always use streaming mode
         defaults.timings_per_token = true; // in order to get timings even when we cancel mid-way
@@ -106,6 +112,24 @@ struct cli_context {
             auto res_partial = dynamic_cast<server_task_result_cmpl_partial *>(result.get());
             if (res_partial) {
                 out_timings = std::move(res_partial->timings);
+
+                // Update status bar with current metrics
+                if (status_bar_enabled) {
+                    statusbar::metrics_data metrics;
+                    metrics.prompt_per_second = out_timings.prompt_per_second;
+                    metrics.generation_per_second = out_timings.predicted_per_second;
+
+                    // Get KV cache info from llama context
+                    auto * llama_ctx = ctx_server.get_llama_context();
+                    if (llama_ctx) {
+                        metrics.kv_cache_total = llama_n_ctx(llama_ctx);
+                        // Estimate used tokens from prompt and predicted tokens
+                        metrics.kv_cache_used = out_timings.prompt_n + out_timings.predicted_n;
+                    }
+
+                    statusbar::update(metrics);
+                }
+
                 for (const auto & diff : res_partial->oaicompat_msg_diffs) {
                     if (!diff.content_delta.empty()) {
                         if (is_thinking) {
@@ -184,6 +208,15 @@ int main(int argc, char ** argv) {
     // TODO: avoid using atexit() here by making `console` a singleton
     console::init(params.simple_io, params.use_color);
     atexit([]() { console::cleanup(); });
+
+    // Initialize status bar if enabled
+    if (params.status_bar) {
+        if (!statusbar::init()) {
+            // Fall back to normal mode if status bar initialization fails
+            params.status_bar = false;
+        }
+    }
+    atexit([]() { if (statusbar::is_active()) statusbar::cleanup(); });
 
     console::set_display(DISPLAY_TYPE_RESET);
 

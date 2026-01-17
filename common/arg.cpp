@@ -1272,6 +1272,14 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         }
     ).set_examples({LLAMA_EXAMPLE_CLI}).set_env("LLAMA_ARG_SHOW_TIMINGS"));
     add_opt(common_arg(
+        {"--status-bar"},
+        {"--no-status-bar"},
+        string_format("enable top-like fixed status bar with real-time metrics (default: %s)", params.status_bar ? "true" : "false"),
+        [](common_params & params, bool value) {
+            params.status_bar = value;
+        }
+    ).set_examples({LLAMA_EXAMPLE_CLI}).set_env("LLAMA_ARG_STATUS_BAR"));
+    add_opt(common_arg(
         {"-f", "--file"}, "FNAME",
         "a file containing the prompt (default: none)",
         [](common_params & params, const std::string & value) {
