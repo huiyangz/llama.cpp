@@ -3481,6 +3481,42 @@ LLAMA_API std::map<ggml_backend_buffer_type_t, llama_memory_breakdown_data> llam
     return ctx->memory_breakdown();
 }
 
+LLAMA_API size_t llama_kv_cache_get_used_bytes(const struct llama_context * ctx) {
+    const auto * llama_ctx = dynamic_cast<const llama_context *>(ctx);
+    if (!llama_ctx) {
+        return 0;
+    }
+
+    // 首先获取总KV缓存大小
+    auto breakdown = llama_memory_breakdown(ctx);
+    size_t total_kv_bytes = 0;
+    for (const auto & [buft, data] : breakdown) {
+        total_kv_bytes += data.context;
+    }
+
+    // 获取上下文大小和已使用的token数
+    uint32_t max_context_size = llama_ctx->n_ctx();
+    llama_perf_context_data perf = llama_ctx->perf_get_data();
+    int32_t used_tokens = perf.n_p_eval + perf.n_eval;
+
+    // 按比例估算已使用的KV缓存
+    if (max_context_size > 0) {
+        return (used_tokens * total_kv_bytes) / max_context_size;
+    }
+
+    return 0;
+}
+
+LLAMA_API size_t llama_kv_cache_get_total_bytes(const struct llama_context * ctx) {
+    // 使用原来的memory_breakdown获取总容量
+    auto breakdown = llama_memory_breakdown(ctx);
+    size_t total = 0;
+    for (const auto & [buft, data] : breakdown) {
+        total += data.context;
+    }
+    return total;
+}
+
 void llama_memory_breakdown_print(const struct llama_context * ctx) {
     const std::vector<ggml_backend_dev_t> & devices = ctx->get_model().devices;
 

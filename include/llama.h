@@ -1552,6 +1552,12 @@ struct llama_memory_breakdown_data {
 // get a breakdown of per-device memory use
 LLAMA_API std::map<ggml_backend_buffer_type_t, llama_memory_breakdown_data> llama_memory_breakdown(const struct llama_context * ctx);
 
+// 获取实际使用的KV缓存字节数
+LLAMA_API size_t llama_kv_cache_get_used_bytes(const struct llama_context * ctx);
+
+// 获取KV缓存总容量字节数
+LLAMA_API size_t llama_kv_cache_get_total_bytes(const struct llama_context * ctx);
+
 #endif // __cplusplus
 
 #endif // LLAMA_H

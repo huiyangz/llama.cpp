@@ -149,15 +149,14 @@ struct cli_context {
                     }
 
                     // Calculate KV cache usage
-                    double kv_cache_gb = 0.0;
+                    double kv_cache_gb_used = 0.0;
+                    double kv_cache_gb_total = 0.0;
                     struct llama_context * ctx = ctx_server.get_llama_context();
                     if (ctx) {
-                        auto mem_breakdown = llama_memory_breakdown(ctx);
-                        size_t kv_cache_used = 0;
-                        for (const auto & [buft, data] : mem_breakdown) {
-                            kv_cache_used += data.context; // KV cache memory
-                        }
-                        kv_cache_gb = kv_cache_used / (1024.0 * 1024.0 * 1024.0);
+                        size_t kv_cache_used_bytes = llama_kv_cache_get_used_bytes(ctx);
+                        size_t kv_cache_total_bytes = llama_kv_cache_get_total_bytes(ctx);
+                        kv_cache_gb_used = kv_cache_used_bytes / (1024.0 * 1024.0 * 1024.0);
+                        kv_cache_gb_total = kv_cache_total_bytes / (1024.0 * 1024.0 * 1024.0);
                     }
 
                     // Update last values and time
@@ -167,10 +166,11 @@ struct cli_context {
                         last_calc_time = now;
                     }
 
-                    console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s | KV Cache: %.2f GB",
+                    console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s | KV Cache: %.2f GB / %.2f GB",
                                            prompt_speed,
                                            gen_speed,
-                                           kv_cache_gb);
+                                           kv_cache_gb_used,
+                                           kv_cache_gb_total);
                 }
 
                 for (const auto & diff : res_partial->oaicompat_msg_diffs) {
@@ -215,22 +215,22 @@ struct cli_context {
                     final_gen_speed = out_timings.predicted_per_second;
                 }
                 // Calculate final KV cache usage
-                double kv_cache_gb = 0.0;
+                double kv_cache_gb_used = 0.0;
+                double kv_cache_gb_total = 0.0;
                 struct llama_context * ctx = ctx_server.get_llama_context();
                 if (ctx) {
-                    auto mem_breakdown = llama_memory_breakdown(ctx);
-                    size_t kv_cache_used = 0;
-                    for (const auto & [buft, data] : mem_breakdown) {
-                        kv_cache_used += data.context; // KV cache memory
-                    }
-                    kv_cache_gb = kv_cache_used / (1024.0 * 1024.0 * 1024.0);
+                    size_t kv_cache_used_bytes = llama_kv_cache_get_used_bytes(ctx);
+                    size_t kv_cache_total_bytes = llama_kv_cache_get_total_bytes(ctx);
+                    kv_cache_gb_used = kv_cache_used_bytes / (1024.0 * 1024.0 * 1024.0);
+                    kv_cache_gb_total = kv_cache_total_bytes / (1024.0 * 1024.0 * 1024.0);
                 }
                 // Update top bar one last time with final metrics
                 if (params.fixed_top) {
-                    console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s | KV Cache: %.2f GB",
+                    console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s | KV Cache: %.2f GB / %.2f GB",
                                            final_prompt_speed,
                                            final_gen_speed,
-                                           kv_cache_gb);
+                                           kv_cache_gb_used,
+                                           kv_cache_gb_total);
                 }
                 break;
             }
