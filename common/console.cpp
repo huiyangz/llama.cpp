@@ -1127,11 +1127,9 @@ namespace console {
 
     void enable_fixed_top() {
         fixed_top_mode = true;
-        // Clear screen and initialize with a clear top bar
+        // Clear screen and initialize
         fprintf(out, "\033[2J"); // Clear entire screen
         fprintf(out, "\033[H");  // Move to home position
-        fprintf(out, "\033[K");  // Clear the line
-        fprintf(out, "\r");       // Move cursor to start of line
         fflush(out);
     }
 
@@ -1140,11 +1138,14 @@ namespace console {
             return;
         }
 
-        // Move to absolute position top-left corner (line 1, column 1)
-        fprintf(out, "\033[1G\033[1;0H");
+        // Save current cursor position
+        fprintf(out, "\033[s");
 
-        // Clear from cursor to end of line
-        fprintf(out, "\033[K");
+        // Move to absolute position top-left corner (line 1, column 1)
+        fprintf(out, "\033[1;1H");
+
+        // Clear the entire line
+        fprintf(out, "\033[2K");
 
         // Output the top bar content with green color
         fprintf(out, "\033[1;32m"); // Set green color
@@ -1154,15 +1155,15 @@ namespace console {
         va_end(args);
         fprintf(out, "\033[0m"); // Reset color
 
-        // Force the cursor to line 2 below the top bar
-        fprintf(out, "\033[2;1H");
+        // Restore cursor position
+        fprintf(out, "\033[u");
         fflush(out);
     }
 
     void log(const char * fmt, ...) {
         if (fixed_top_mode) {
-            // For fixed top mode, all log output must not overwrite the top bar
-            // We need to make sure the cursor is always at line 2 or below
+            // In fixed top mode, output content normally without interfering with top bar
+            // The update_top_bar function will handle restoring cursor position properly
             va_list args;
             va_start(args, fmt);
             vfprintf(out, fmt, args);

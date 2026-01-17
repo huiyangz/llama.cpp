@@ -85,6 +85,11 @@ struct cli_context {
             rd.post_task({std::move(task)});
         }
 
+        // Initial update if fixed top mode is enabled
+        if (params.fixed_top) {
+            console::update_top_bar("Prompt: 0.0 t/s | Generation: 0.0 t/s");
+        }
+
         // wait for first result
         console::spinner::start();
         server_task_result_ptr result = rd.next(should_stop);
@@ -92,11 +97,6 @@ struct cli_context {
         console::spinner::stop();
         std::string curr_content;
         bool is_thinking = false;
-
-        // Initial update if fixed top mode is enabled
-        if (params.fixed_top) {
-            console::update_top_bar("Prompt: 0.0 t/s | Generation: 0.0 t/s");
-        }
 
         while (result) {
             if (should_stop()) {
@@ -114,6 +114,14 @@ struct cli_context {
             auto res_partial = dynamic_cast<server_task_result_cmpl_partial *>(result.get());
             if (res_partial) {
                 out_timings = std::move(res_partial->timings);
+
+                // Update top bar with the latest metrics immediately when partial results are available
+                if (params.fixed_top) {
+                    console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s",
+                                           out_timings.prompt_per_second,
+                                           out_timings.predicted_per_second);
+                }
+
                 for (const auto & diff : res_partial->oaicompat_msg_diffs) {
                     if (!diff.content_delta.empty()) {
                         if (is_thinking) {
@@ -135,17 +143,16 @@ struct cli_context {
                         console::flush();
                     }
                 }
-
-                // Update top bar with the latest metrics
+            }
+            auto res_final = dynamic_cast<server_task_result_cmpl_final *>(result.get());
+            if (res_final) {
+                out_timings = std::move(res_final->timings);
+                // Update top bar one last time with final metrics
                 if (params.fixed_top) {
                     console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s",
                                            out_timings.prompt_per_second,
                                            out_timings.predicted_per_second);
                 }
-            }
-            auto res_final = dynamic_cast<server_task_result_cmpl_final *>(result.get());
-            if (res_final) {
-                out_timings = std::move(res_final->timings);
                 break;
             }
 
