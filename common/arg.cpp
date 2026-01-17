@@ -1272,6 +1272,14 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         }
     ).set_examples({LLAMA_EXAMPLE_CLI}).set_env("LLAMA_ARG_SHOW_TIMINGS"));
     add_opt(common_arg(
+        {"--fixed-top"},
+        {"--no-fixed-top"},
+        string_format("enable fixed top display mode like top command (default: %s)", params.fixed_top ? "true" : "false"),
+        [](common_params & params, bool value) {
+            params.fixed_top = value;
+        }
+    ).set_examples({LLAMA_EXAMPLE_CLI}).set_env("LLAMA_ARG_FIXED_TOP"));
+    add_opt(common_arg(
         {"-f", "--file"}, "FNAME",
         "a file containing the prompt (default: none)",
         [](common_params & params, const std::string & value) {

@@ -31,6 +31,12 @@ namespace console {
     // only use in in a dedicated CLI thread
     // for logging in inference thread, use log.h instead
 
+    // fixed top display mode support
+    void enable_fixed_top();
+
+    LLAMA_COMMON_ATTRIBUTE_FORMAT(1, 2)
+    void update_top_bar(const char * fmt, ...);
+
     LLAMA_COMMON_ATTRIBUTE_FORMAT(1, 2)
     void log(const char * fmt, ...);
 

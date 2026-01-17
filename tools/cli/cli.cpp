@@ -5,11 +5,13 @@
 
 #include "server-context.h"
 #include "server-task.h"
+#include "llama.h"
 
 #include <atomic>
 #include <fstream>
 #include <thread>
 #include <signal.h>
+#include <chrono>
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -52,11 +54,12 @@ struct cli_context {
     json messages = json::array();
     std::vector<raw_buffer> input_files;
     task_params defaults;
+    const common_params & params; // Store reference to common params
 
     // thread for showing "loading" animation
     std::atomic<bool> loading_show;
 
-    cli_context(const common_params & params) {
+    cli_context(const common_params & params) : params(params) {
         defaults.sampling    = params.sampling;
         defaults.speculative = params.speculative;
         defaults.n_keep      = params.n_keep;
@@ -89,6 +92,8 @@ struct cli_context {
         console::spinner::stop();
         std::string curr_content;
         bool is_thinking = false;
+
+        auto last_update_time = std::chrono::high_resolution_clock::now();
 
         while (result) {
             if (should_stop()) {
@@ -133,6 +138,20 @@ struct cli_context {
                 out_timings = std::move(res_final->timings);
                 break;
             }
+
+            // Update fixed top bar every 0.5 seconds if enabled
+            if (params.fixed_top) {
+                auto now = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> elapsed = now - last_update_time;
+                if (elapsed.count() >= 0.5) {
+                    // Update top bar with performance metrics (KV cache info will be added later)
+                    console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s",
+                                           out_timings.prompt_per_second,
+                                           out_timings.predicted_per_second);
+                    last_update_time = now;
+                }
+            }
+
             result = rd.next(should_stop);
         }
         g_is_interrupted.store(false);
@@ -184,6 +203,11 @@ int main(int argc, char ** argv) {
     // TODO: avoid using atexit() here by making `console` a singleton
     console::init(params.simple_io, params.use_color);
     atexit([]() { console::cleanup(); });
+
+    // Enable fixed top mode if configured
+    if (params.fixed_top) {
+        console::enable_fixed_top();
+    }
 
     console::set_display(DISPLAY_TYPE_RESET);
 

@@ -70,6 +70,7 @@ namespace console {
     static bool         advanced_display = false;
     static bool         simple_io        = true;
     static display_type current_display  = DISPLAY_TYPE_RESET;
+    static bool         fixed_top_mode   = false;
 
     static FILE*        out              = stdout;
 
@@ -1114,13 +1115,6 @@ namespace console {
         }
     }
 
-    void log(const char * fmt, ...) {
-        va_list args;
-        va_start(args, fmt);
-        vfprintf(out, fmt, args);
-        va_end(args);
-    }
-
     void error(const char * fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -1129,6 +1123,54 @@ namespace console {
         vfprintf(out, fmt, args);
         set_display(cur); // restore previous color
         va_end(args);
+    }
+
+    void enable_fixed_top() {
+        fixed_top_mode = true;
+        // Save current cursor position and move to top
+        fprintf(out, "\033[s"); // Save cursor position
+        fprintf(out, "\033[H"); // Move to home position (top-left)
+        fprintf(out, "\033[K"); // Clear the line
+        fflush(out);
+    }
+
+    void update_top_bar(const char * fmt, ...) {
+        if (!fixed_top_mode) {
+            return;
+        }
+
+        // Save current cursor position
+        fprintf(out, "\033[s");
+
+        // Move to the beginning of the top bar
+        fprintf(out, "\033[H");
+
+        // Clear the line
+        fprintf(out, "\033[K");
+
+        // Output the top bar content
+        va_list args;
+        va_start(args, fmt);
+        vfprintf(out, fmt, args);
+        va_end(args);
+
+        // Restore cursor position
+        fprintf(out, "\033[u");
+        fflush(out);
+    }
+
+    void log(const char * fmt, ...) {
+        if (fixed_top_mode) {
+            // Move down one line before outputting content
+            // to avoid overwriting the top bar
+            fprintf(out, "\n");
+        }
+
+        va_list args;
+        va_start(args, fmt);
+        vfprintf(out, fmt, args);
+        va_end(args);
+        fflush(out);
     }
 
     void flush() {
