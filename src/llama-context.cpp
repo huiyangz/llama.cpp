@@ -3477,6 +3477,10 @@ void llama_perf_context_reset(llama_context * ctx) {
     ctx->perf_reset();
 }
 
+LLAMA_API std::map<ggml_backend_buffer_type_t, llama_memory_breakdown_data> llama_memory_breakdown(const struct llama_context * ctx) {
+    return ctx->memory_breakdown();
+}
+
 void llama_memory_breakdown_print(const struct llama_context * ctx) {
     const std::vector<ggml_backend_dev_t> & devices = ctx->get_model().devices;
 

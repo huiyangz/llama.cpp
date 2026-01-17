@@ -1535,4 +1535,23 @@ extern "C" {
 }
 #endif
 
+#ifdef __cplusplus
+#include <map>
+
+// "memory" as in physical memory for a buffer type, in bytes
+struct llama_memory_breakdown_data {
+    size_t model = 0; // memory allocated for the model
+    size_t context = 0; // memory allocated for the context
+    size_t compute = 0; // memory allocated for temporary compute buffers
+
+    size_t total() const {
+        return model + context + compute;
+    }
+};
+
+// get a breakdown of per-device memory use
+LLAMA_API std::map<ggml_backend_buffer_type_t, llama_memory_breakdown_data> llama_memory_breakdown(const struct llama_context * ctx);
+
+#endif // __cplusplus
+
 #endif // LLAMA_H

@@ -100,7 +100,7 @@ struct cli_context {
 
         // Initial update if fixed top mode is enabled
         if (params.fixed_top) {
-            console::update_top_bar("Prompt: 0.0 t/s | Generation: 0.0 t/s");
+            console::update_top_bar("Prompt: 0.0 t/s | Generation: 0.0 t/s | KV Cache: 0.00 GB");
         }
 
         // wait for first result
@@ -148,6 +148,18 @@ struct cli_context {
                         }
                     }
 
+                    // Calculate KV cache usage
+                    double kv_cache_gb = 0.0;
+                    struct llama_context * ctx = ctx_server.get_llama_context();
+                    if (ctx) {
+                        auto mem_breakdown = llama_memory_breakdown(ctx);
+                        size_t kv_cache_used = 0;
+                        for (const auto & [buft, data] : mem_breakdown) {
+                            kv_cache_used += data.context; // KV cache memory
+                        }
+                        kv_cache_gb = kv_cache_used / (1024.0 * 1024.0 * 1024.0);
+                    }
+
                     // Update last values and time
                     if (elapsed.count() >= 0.5) { // Update at most every 0.5 seconds
                         prompt_n_last = out_timings.prompt_n;
@@ -155,9 +167,10 @@ struct cli_context {
                         last_calc_time = now;
                     }
 
-                    console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s",
+                    console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s | KV Cache: %.2f GB",
                                            prompt_speed,
-                                           gen_speed);
+                                           gen_speed,
+                                           kv_cache_gb);
                 }
 
                 for (const auto & diff : res_partial->oaicompat_msg_diffs) {
@@ -194,11 +207,30 @@ struct cli_context {
                     final_prompt_speed = (out_timings.prompt_n - prompt_n_last) / elapsed.count();
                     final_gen_speed = (out_timings.predicted_n - predicted_n_last) / elapsed.count();
                 }
+                // Use averages if final speeds are not meaningful
+                if (final_prompt_speed <= 0.1) {
+                    final_prompt_speed = out_timings.prompt_per_second;
+                }
+                if (final_gen_speed <= 0.1) {
+                    final_gen_speed = out_timings.predicted_per_second;
+                }
+                // Calculate final KV cache usage
+                double kv_cache_gb = 0.0;
+                struct llama_context * ctx = ctx_server.get_llama_context();
+                if (ctx) {
+                    auto mem_breakdown = llama_memory_breakdown(ctx);
+                    size_t kv_cache_used = 0;
+                    for (const auto & [buft, data] : mem_breakdown) {
+                        kv_cache_used += data.context; // KV cache memory
+                    }
+                    kv_cache_gb = kv_cache_used / (1024.0 * 1024.0 * 1024.0);
+                }
                 // Update top bar one last time with final metrics
                 if (params.fixed_top) {
-                    console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s",
+                    console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s | KV Cache: %.2f GB",
                                            final_prompt_speed,
-                                           final_gen_speed);
+                                           final_gen_speed,
+                                           kv_cache_gb);
                 }
                 break;
             }
