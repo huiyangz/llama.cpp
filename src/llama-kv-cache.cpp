@@ -975,6 +975,15 @@ uint32_t llama_kv_cache::get_size() const {
     return cells.size();
 }
 
+uint32_t llama_kv_cache::get_used() const {
+    // Get total used cells across all streams
+    uint32_t total_used = 0;
+    for (const auto & cells : v_cells) {
+        total_used += cells.get_used();
+    }
+    return total_used;
+}
+
 uint32_t llama_kv_cache::get_n_stream() const {
     return n_stream;
 }

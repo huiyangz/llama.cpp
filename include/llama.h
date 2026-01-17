@@ -1498,6 +1498,16 @@ extern "C" {
     // print a breakdown of per-device memory use via LLAMA_LOG:
     LLAMA_API void llama_memory_breakdown_print(const struct llama_context * ctx);
 
+    // KV cache usage information
+    struct llama_kv_cache_usage {
+        size_t used;    // actual bytes used by KV cache
+        size_t total;   // total bytes allocated for KV cache
+        int32_t tokens; // number of tokens currently stored
+    };
+
+    // get current KV cache usage information
+    LLAMA_API struct llama_kv_cache_usage llama_get_kv_cache_usage(const struct llama_context * ctx);
+
     //
     // training
     //

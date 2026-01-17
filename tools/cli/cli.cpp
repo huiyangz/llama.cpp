@@ -122,9 +122,9 @@ struct cli_context {
                     // Get KV cache info from llama context
                     auto * llama_ctx = ctx_server.get_llama_context();
                     if (llama_ctx) {
-                        metrics.kv_cache_total = llama_n_ctx(llama_ctx);
-                        // Estimate used tokens from prompt and predicted tokens
-                        metrics.kv_cache_used = out_timings.prompt_n + out_timings.predicted_n;
+                        auto kv_usage = llama_get_kv_cache_usage(llama_ctx);
+                        metrics.kv_cache_used = kv_usage.used;
+                        metrics.kv_cache_total = kv_usage.total;
                     }
 
                     statusbar::update(metrics);

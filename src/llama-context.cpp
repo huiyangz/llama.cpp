@@ -4,6 +4,7 @@
 #include "llama-impl.h"
 #include "llama-batch.h"
 #include "llama-io.h"
+#include "llama-kv-cache.h"
 #include "llama-memory.h"
 #include "llama-mmap.h"
 #include "llama-model.h"
@@ -3611,6 +3612,50 @@ void llama_memory_breakdown_print(const struct llama_context * ctx) {
             __func__, td[1].c_str(), td[2].c_str(), td[3].c_str(), td[4].c_str(), td[5].c_str(),
             td[6].c_str(), td[7].c_str(), td[8].c_str());
     }
+}
+
+struct llama_kv_cache_usage llama_get_kv_cache_usage(const struct llama_context * ctx) {
+    struct llama_kv_cache_usage usage = {0, 0, 0};
+
+    if (!ctx) {
+        return usage;
+    }
+
+    // Get total allocated bytes from memory breakdown
+    auto mem_breakdown = ctx->memory_breakdown();
+    for (const auto & [buft, data] : mem_breakdown) {
+        usage.total += data.context;  // Only count context (KV cache) memory
+    }
+
+    // Get actual used bytes by counting used cells in KV cache
+    // Use dynamic_cast to access KV cache specific methods
+    const llama_memory_i * memory = ctx->get_memory();
+    if (memory) {
+        auto * kv_cache = dynamic_cast<const llama_kv_cache *>(memory);
+        if (kv_cache) {
+            // Get the number of used cells (tokens) in the KV cache
+            uint32_t used_cells = kv_cache->get_used();
+            uint32_t total_cells = kv_cache->get_size();
+
+            usage.tokens = used_cells;
+
+            // Calculate used bytes based on used cells vs total cells
+            if (total_cells > 0 && usage.total > 0) {
+                // Calculate bytes per cell from total allocation
+                size_t bytes_per_cell = usage.total / total_cells;
+
+                // Actual used bytes
+                usage.used = used_cells * bytes_per_cell;
+            } else {
+                usage.used = usage.total;
+            }
+        } else {
+            // Fallback: if not KV cache, use total as used
+            usage.used = usage.total;
+        }
+    }
+
+    return usage;
 }
 
 //

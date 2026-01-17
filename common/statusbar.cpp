@@ -199,13 +199,30 @@ void update(const metrics_data & data) {
         kv_percent = (float)data.kv_cache_used / data.kv_cache_total * 100.0f;
     }
 
-    // Format and display metrics
-    // Format: "Prompt: 320.8 t/s | Gen: 22.8 t/s | KV: 2048/8192 (25%)"
-    fprintf(stdout, "Prompt: %.1f t/s | Gen: %.1f t/s | KV: %d/%d (%.0f%%)",
+    // Format bytes as string
+    char used_buf[32], total_buf[32];
+
+    auto format_bytes = [](char * buf, size_t bytes) {
+        if (bytes >= 1024 * 1024 * 1024) {
+            snprintf(buf, 32, "%.2f GiB", bytes / (1024.0 * 1024.0 * 1024.0));
+        } else if (bytes >= 1024 * 1024) {
+            snprintf(buf, 32, "%.2f MiB", bytes / (1024.0 * 1024.0));
+        } else if (bytes >= 1024) {
+            snprintf(buf, 32, "%.2f KiB", bytes / 1024.0);
+        } else {
+            snprintf(buf, 32, "%zu B", bytes);
+        }
+    };
+
+    format_bytes(used_buf, data.kv_cache_used);
+    format_bytes(total_buf, data.kv_cache_total);
+
+    // Format and display metrics with bytes
+    fprintf(stdout, "Prompt: %.1f t/s | Gen: %.1f t/s | KV: %s/%s (%.0f%%)",
             data.prompt_per_second,
             data.generation_per_second,
-            data.kv_cache_used,
-            data.kv_cache_total,
+            used_buf,
+            total_buf,
             kv_percent);
 
     // Reset color

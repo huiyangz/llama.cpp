@@ -149,6 +149,7 @@ public:
 
     uint32_t get_size()     const;
     uint32_t get_n_stream() const;
+    uint32_t get_used()     const;  // get actual number of used cells (tokens)
 
     bool get_has_shift() const;
 
