@@ -505,6 +505,31 @@ std::map<ggml_backend_buffer_type_t, size_t> llama_kv_cache::memory_breakdown() 
     return ret;
 }
 
+size_t llama_kv_cache::get_kv_cache_used_bytes() const {
+    // 统计所有streams中已使用的kv cells
+    size_t used_cells_total = 0;
+    for (size_t i = 0; i < v_cells.size(); ++i) {
+        const auto & cells = v_cells[i];
+        size_t used = cells.get_used();
+        used_cells_total += used;
+    }
+
+    // 计算每个cell的字节大小（考虑所有层）
+    size_t bytes_per_cell = 0;
+    if (!layers.empty() && !v_cells.empty()) {
+        // 计算所有层KV大小的总和
+        size_t total_kv_size = 0;
+        for (const auto & layer : layers) {
+            if (layer.k && layer.v) {
+                total_kv_size += ggml_nbytes(layer.k) + ggml_nbytes(layer.v);
+            }
+        }
+        bytes_per_cell = total_kv_size / v_cells[0].size();
+    }
+
+    return used_cells_total * bytes_per_cell;
+}
+
 llama_memory_context_ptr llama_kv_cache::init_batch(
             llama_batch_allocr & balloc,
             uint32_t n_ubatch,

@@ -153,10 +153,13 @@ struct cli_context {
                     double kv_cache_gb_total = 0.0;
                     struct llama_context * ctx = ctx_server.get_llama_context();
                     if (ctx) {
-                        size_t kv_cache_used_bytes = llama_kv_cache_get_used_bytes(ctx);
+                        // Calculate total kv cache size using existing function
                         size_t kv_cache_total_bytes = llama_kv_cache_get_total_bytes(ctx);
-                        kv_cache_gb_used = kv_cache_used_bytes / (1024.0 * 1024.0 * 1024.0);
                         kv_cache_gb_total = kv_cache_total_bytes / (1024.0 * 1024.0 * 1024.0);
+
+                        // Get actual used KV cache using our implementation
+                        size_t kv_cache_used_bytes = llama_kv_cache_get_used_bytes(ctx);
+                        kv_cache_gb_used = kv_cache_used_bytes / (1024.0 * 1024.0 * 1024.0);
                     }
 
                     // Update last values and time
@@ -219,10 +222,13 @@ struct cli_context {
                 double kv_cache_gb_total = 0.0;
                 struct llama_context * ctx = ctx_server.get_llama_context();
                 if (ctx) {
-                    size_t kv_cache_used_bytes = llama_kv_cache_get_used_bytes(ctx);
+                    // Calculate total kv cache size using existing function
                     size_t kv_cache_total_bytes = llama_kv_cache_get_total_bytes(ctx);
-                    kv_cache_gb_used = kv_cache_used_bytes / (1024.0 * 1024.0 * 1024.0);
                     kv_cache_gb_total = kv_cache_total_bytes / (1024.0 * 1024.0 * 1024.0);
+
+                    // Get actual used KV cache using our implementation
+                    size_t kv_cache_used_bytes = llama_kv_cache_get_used_bytes(ctx);
+                    kv_cache_gb_used = kv_cache_used_bytes / (1024.0 * 1024.0 * 1024.0);
                 }
                 // Update top bar one last time with final metrics
                 if (params.fixed_top) {

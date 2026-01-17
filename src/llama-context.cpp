@@ -3487,24 +3487,14 @@ LLAMA_API size_t llama_kv_cache_get_used_bytes(const struct llama_context * ctx)
         return 0;
     }
 
-    // 首先获取总KV缓存大小
-    auto breakdown = llama_memory_breakdown(ctx);
-    size_t total_kv_bytes = 0;
-    for (const auto & [buft, data] : breakdown) {
-        total_kv_bytes += data.context;
+    // 获取memory对象
+    llama_memory_t memory_ptr = llama_ctx->get_memory();
+    if (!memory_ptr) {
+        return 0;
     }
 
-    // 获取上下文大小和已使用的token数
-    uint32_t max_context_size = llama_ctx->n_ctx();
-    llama_perf_context_data perf = llama_ctx->perf_get_data();
-    int32_t used_tokens = perf.n_p_eval + perf.n_eval;
-
-    // 按比例估算已使用的KV缓存
-    if (max_context_size > 0) {
-        return (used_tokens * total_kv_bytes) / max_context_size;
-    }
-
-    return 0;
+    // 调用get_kv_cache_used_bytes()获取实际已使用的字节数
+    return memory_ptr->get_kv_cache_used_bytes();
 }
 
 LLAMA_API size_t llama_kv_cache_get_total_bytes(const struct llama_context * ctx) {

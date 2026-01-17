@@ -111,6 +111,11 @@ struct llama_memory_i {
 
     virtual std::map<ggml_backend_buffer_type_t, size_t> memory_breakdown() const = 0;
 
+    // Get the number of bytes actually used in KV cache (not total allocated)
+    virtual size_t get_kv_cache_used_bytes() const {
+        return 0;
+    }
+
     //
     // state write/read
     //

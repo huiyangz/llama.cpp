@@ -138,6 +138,9 @@ public:
 
     std::map<ggml_backend_buffer_type_t, size_t> memory_breakdown() const override;
 
+    // Get the number of bytes actually used in KV cache (not total allocated)
+    size_t get_kv_cache_used_bytes() const override;
+
     // state write/load
 
     void state_write(llama_io_write_i & io, llama_seq_id seq_id = -1, llama_state_seq_flags flags = 0) const override;
