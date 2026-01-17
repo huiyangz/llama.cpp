@@ -976,12 +976,12 @@ uint32_t llama_kv_cache::get_size() const {
 }
 
 uint32_t llama_kv_cache::get_used() const {
-    // Get total used cells across all streams
-    uint32_t total_used = 0;
-    for (const auto & cells : v_cells) {
-        total_used += cells.get_used();
+    // For unified cache (n_stream == 1), all sequences share the same cells
+    // Return the used cells from stream 0, which represents the actual used cells
+    if (!v_cells.empty()) {
+        return v_cells[0].get_used();
     }
-    return total_used;
+    return 0;
 }
 
 uint32_t llama_kv_cache::get_n_stream() const {

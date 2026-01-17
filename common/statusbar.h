@@ -13,8 +13,8 @@ namespace statusbar {
 struct metrics_data {
     double prompt_per_second = 0.0;
     double generation_per_second = 0.0;
-    int32_t kv_cache_used = 0;
-    int32_t kv_cache_total = 0;
+    size_t kv_cache_used = 0;
+    size_t kv_cache_total = 0;
 };
 
 // Initialize the status bar

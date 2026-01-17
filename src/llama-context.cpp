@@ -3621,38 +3621,58 @@ struct llama_kv_cache_usage llama_get_kv_cache_usage(const struct llama_context 
         return usage;
     }
 
-    // Get total allocated bytes from memory breakdown
+    // Get the context size (total tokens the KV cache can hold)
+    uint32_t n_ctx = ctx->n_ctx();
+
+    // Calculate KV cache total size from model parameters
+    // This is more reliable than memory_breakdown() which may return 0 in some cases
+    const llama_model & model = ctx->get_model();
+    const llama_hparams & hparams = model.hparams;
+
+    // Calculate KV cache size based on model architecture
+    // Size = n_ctx * n_layer_kv * (n_embd_k + n_embd_v) * sizeof(element)
+    // Assuming FP16 (2 bytes per element) for KV cache
+    const uint32_t n_layer_kv = hparams.n_layer_kv();
+    const uint32_t n_embd_k = hparams.n_embd_k_gqa(0);  // Use layer 0 as reference
+    const uint32_t n_embd_v = hparams.n_embd_v_gqa(0);
+    const size_t bytes_per_element = 2;  // FP16
+
+    // Total KV cache size in bytes
+    usage.total = (size_t)n_ctx * n_layer_kv * (n_embd_k + n_embd_v) * bytes_per_element;
+
+    // Try to get actual used bytes from memory breakdown first
     auto mem_breakdown = ctx->memory_breakdown();
+    size_t context_mem = 0;
     for (const auto & [buft, data] : mem_breakdown) {
-        usage.total += data.context;  // Only count context (KV cache) memory
+        context_mem += data.context;
     }
 
-    // Get actual used bytes by counting used cells in KV cache
-    // Use dynamic_cast to access KV cache specific methods
-    const llama_memory_i * memory = ctx->get_memory();
-    if (memory) {
-        auto * kv_cache = dynamic_cast<const llama_kv_cache *>(memory);
-        if (kv_cache) {
-            // Get the number of used cells (tokens) in the KV cache
-            uint32_t used_cells = kv_cache->get_used();
-            uint32_t total_cells = kv_cache->get_size();
+    // If memory_breakdown gives us a non-zero context size, use that as total
+    // (it may be more accurate if the model uses compression or other optimizations)
+    if (context_mem > 0) {
+        usage.total = context_mem;
+    }
 
-            usage.tokens = used_cells;
+    // Calculate used bytes based on actual usage
+    if (n_ctx > 0 && usage.total > 0) {
+        // Get performance data to estimate usage
+        auto perf_data = ctx->perf_get_data();
 
-            // Calculate used bytes based on used cells vs total cells
-            if (total_cells > 0 && usage.total > 0) {
-                // Calculate bytes per cell from total allocation
-                size_t bytes_per_cell = usage.total / total_cells;
+        // Calculate used tokens from performance data
+        uint32_t used_tokens = perf_data.n_p_eval + perf_data.n_eval;
 
-                // Actual used bytes
-                usage.used = used_cells * bytes_per_cell;
-            } else {
-                usage.used = usage.total;
-            }
-        } else {
-            // Fallback: if not KV cache, use total as used
+        usage.tokens = used_tokens;
+
+        // Calculate used bytes proportionally
+        size_t bytes_per_token = usage.total / n_ctx;
+        usage.used = used_tokens * bytes_per_token;
+
+        // Cap at total
+        if (usage.used > usage.total) {
             usage.used = usage.total;
         }
+    } else {
+        usage.used = usage.total;
     }
 
     return usage;
