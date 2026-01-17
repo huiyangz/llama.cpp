@@ -1132,10 +1132,21 @@ namespace console {
         fixed_top_mode = true;
         // Clear screen and initialize
         fprintf(out, "\033[2J"); // Clear entire screen
-        fprintf(out, "\033[H");  // Move to home position
-        fprintf(out, "\033[K");  // Clear first line
-        fprintf(out, "Waiting for metrics..."); // Initial message
-        fprintf(out, "\033[2;1H"); // Move cursor to line 2
+
+        // Enable fixed top bar with more visibility
+        fprintf(out, "\033[1;1H"); // Move to top-left corner
+        fprintf(out, "\033[1;37;44m"); // White text, blue background
+
+        // Add a header with borders
+        fprintf(out, "══════════════════════════════════════════════════════");
+        fprintf(out, "\033[1;1H"); // Move back to start
+        fprintf(out, "║ ");
+        fprintf(out, " Waiting for metrics... ");
+        fprintf(out, "║");
+
+        // Reset color and move to line 3 below the header
+        fprintf(out, "\033[0m"); // Reset color
+        fprintf(out, "\033[3;1H"); // Move to line 3
         top_bar_content = "Waiting for metrics...";
         fflush(out);
     }
@@ -1148,7 +1159,7 @@ namespace console {
         // Save cursor position
         fprintf(out, "\033[s");
 
-        // Save the formatted top bar content
+        // Format the metrics
         char buffer[1024];
         va_list args;
         va_start(args, fmt);
@@ -1156,15 +1167,31 @@ namespace console {
         va_end(args);
         top_bar_content = std::string(buffer);
 
-        // Move to top-left corner and update
-        fprintf(out, "\033[1;1H");        // Move to top-left corner (line 1)
-        fprintf(out, "\033[2K");          // Clear the entire line
-        fprintf(out, "\033[1;32m");       // Set green color
-        fprintf(out, "%s", buffer);       // Output the content
-        fprintf(out, "\033[0m");          // Reset color
+        // Update top bar with enhanced visibility
+        fprintf(out, "\033[1;1H"); // Move to line 1
 
-        // Restore cursor position
+        // Use blue background with white text for better visibility
+        fprintf(out, "\033[1;37;44m"); // White text, blue background
+        fprintf(out, "\033[K"); // Clear line
+
+        // Add borders around the metrics
+        fprintf(out, "║ ");
+        fprintf(out, "%s", buffer); // Metrics content
+        fprintf(out, " ║");
+        fprintf(out, "\033[0m"); // Reset color
+
+        // Add a separator line below
+        fprintf(out, "\033[2;1H"); // Move to line 2
+        fprintf(out, "\033[1;34m"); // Blue foreground
+        fprintf(out, "══════════════════════════════════════════════════════");
+        fprintf(out, "\033[0m"); // Reset color
+
+        // Restore cursor position (ensuring it doesn't get stuck in the header area)
         fprintf(out, "\033[u");
+        long pos = ftell(out);
+        if (pos < 100) { // If cursor was near the top (likely invalid now), move it below the header
+            fprintf(out, "\033[3;1H");
+        }
         fflush(out);
     }
 
