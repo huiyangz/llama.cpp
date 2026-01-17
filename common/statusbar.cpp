@@ -27,10 +27,18 @@ namespace statusbar {
 #define ANSI_SET_SCROLL_REGION(n) "\033[" #n ";r"
 #define ANSI_CURSOR_POS(r, c) "\033[" #r ";" #c "H"
 
+// Colors and styles
+#define ANSI_COLOR_CYAN       "\x1b[36m"
+#define ANSI_COLOR_GREEN      "\x1b[32m"
+#define ANSI_COLOR_YELLOW     "\x1b[33m"
+#define ANSI_COLOR_BOLD       "\x1b[1m"
+#define ANSI_COLOR_RESET      "\x1b[0m"
+
 // State
 static bool g_active = false;
 static bool g_simple_io = true;
 static int g_terminal_width = 80;
+static bool g_use_color = true;
 
 // Get terminal width
 static int get_terminal_width() {
@@ -56,17 +64,48 @@ static int get_terminal_width() {
 static void draw_separator() {
     if (!g_active) return;
 
-    // Save cursor, move to line 2, clear and draw separator
-    fprintf(stdout, ANSI_SAVE_CURSOR);
-    fprintf(stdout, "\033[2;1H");  // Move to line 2
+    // Move to line 2, column 1
+    fprintf(stdout, "\033[2;1H");
     fprintf(stdout, ANSI_CLEAR_LINE);
 
-    // Draw separator line
+    // Set cyan color for separator
+    if (g_use_color) {
+        fprintf(stdout, ANSI_COLOR_CYAN);
+    }
+
+    // Draw separator line - use more compatible characters
     for (int i = 0; i < g_terminal_width; i++) {
         fprintf(stdout, "─");
     }
 
-    fprintf(stdout, ANSI_RESTORE_CURSOR);
+    // Reset color
+    if (g_use_color) {
+        fprintf(stdout, ANSI_COLOR_RESET);
+    }
+
+    fflush(stdout);
+}
+
+// Redraw both status line and separator
+static void redraw_status_bar() {
+    if (!g_active) return;
+
+    // Move to line 1 and draw status
+    fprintf(stdout, "\033[1;1H");
+    fprintf(stdout, ANSI_CLEAR_LINE);
+    if (g_use_color) {
+        fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_GREEN);
+    }
+    fprintf(stdout, "Initializing...");
+    if (g_use_color) {
+        fprintf(stdout, ANSI_COLOR_RESET);
+    }
+
+    // Draw separator on line 2
+    draw_separator();
+
+    // Move cursor to content area (line 3)
+    fprintf(stdout, "\033[3;1H");
     fflush(stdout);
 }
 
@@ -79,9 +118,13 @@ bool init() {
         return false;
     }
 
+    // Check if status bar is force-enabled (for testing)
+    const char * force_statusbar = getenv("LLAMA_FORCE_STATUSBAR");
+    bool force_enabled = force_statusbar != nullptr && strcmp(force_statusbar, "1") == 0;
+
     // Check if stdout is a terminal
 #if !defined(_WIN32)
-    if (!isatty(STDOUT_FILENO)) {
+    if (!isatty(STDOUT_FILENO) && !force_enabled) {
         g_simple_io = true;
         return false;
     }
@@ -90,24 +133,31 @@ bool init() {
     g_simple_io = false;
     g_terminal_width = get_terminal_width();
 
-    // Clear screen and set up scroll region (from line 3 onwards)
+    // Check if color is disabled
+    const char * no_color_env = getenv("LLAMA_NO_COLOR");
+    const char * cli_color_env = getenv("LLAMA_CLI_COLOR");  // Check for CLI color setting
+    if (no_color_env != nullptr || (cli_color_env != nullptr && strcmp(cli_color_env, "0") == 0)) {
+        g_use_color = false;
+    }
+
+    // Clear screen first
     fprintf(stdout, ANSI_CLEAR_SCREEN);
     fprintf(stdout, ANSI_CURSOR_HOME);
-    fprintf(stdout, "\033[3;r");  // Set scroll region from line 3
+    fflush(stdout);
 
-    // Draw initial status bar
-    fprintf(stdout, "\033[1;1H");  // Move to line 1
-    fprintf(stdout, ANSI_CLEAR_LINE);
-    fprintf(stdout, "Initializing...");
+    // Mark as active BEFORE drawing
+    g_active = true;
 
-    // Draw separator
-    draw_separator();
+    // Draw initial status bar (lines 1-2)
+    redraw_status_bar();
 
-    // Move cursor to content area (line 3)
+    // NOW set scroll region from line 3 onwards (after status bar is drawn)
+    fprintf(stdout, "\033[3;r");
+
+    // Ensure cursor is in content area
     fprintf(stdout, "\033[3;1H");
     fflush(stdout);
 
-    g_active = true;
     return true;
 }
 
@@ -133,9 +183,14 @@ void update(const metrics_data & data) {
     // Save current cursor position
     fprintf(stdout, ANSI_SAVE_CURSOR);
 
-    // Move to line 1
+    // Move to line 1 and update status
     fprintf(stdout, "\033[1;1H");
     fprintf(stdout, ANSI_CLEAR_LINE);
+
+    // Set bold and color for the metrics line
+    if (g_use_color) {
+        fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_GREEN);
+    }
 
     // Calculate KV cache percentage
     float kv_percent = 0.0f;
@@ -151,6 +206,23 @@ void update(const metrics_data & data) {
             data.kv_cache_used,
             data.kv_cache_total,
             kv_percent);
+
+    // Reset color
+    if (g_use_color) {
+        fprintf(stdout, ANSI_COLOR_RESET);
+    }
+
+    // Ensure separator line is still visible on line 2
+    fprintf(stdout, "\033[2;1H");
+    if (g_use_color) {
+        fprintf(stdout, ANSI_COLOR_CYAN);
+    }
+    for (int i = 0; i < g_terminal_width; i++) {
+        fprintf(stdout, "─");
+    }
+    if (g_use_color) {
+        fprintf(stdout, ANSI_COLOR_RESET);
+    }
 
     // Restore cursor position
     fprintf(stdout, ANSI_RESTORE_CURSOR);
