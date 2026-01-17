@@ -1125,11 +1125,18 @@ namespace console {
         va_end(args);
     }
 
+    // Fixed top mode variables
+    static std::string top_bar_content;
+
     void enable_fixed_top() {
         fixed_top_mode = true;
         // Clear screen and initialize
         fprintf(out, "\033[2J"); // Clear entire screen
         fprintf(out, "\033[H");  // Move to home position
+        fprintf(out, "\033[K");  // Clear first line
+        fprintf(out, "Waiting for metrics..."); // Initial message
+        fprintf(out, "\033[2;1H"); // Move cursor to line 2
+        top_bar_content = "Waiting for metrics...";
         fflush(out);
     }
 
@@ -1138,22 +1145,23 @@ namespace console {
             return;
         }
 
-        // Save current cursor position
+        // Save cursor position
         fprintf(out, "\033[s");
 
-        // Move to absolute position top-left corner (line 1, column 1)
-        fprintf(out, "\033[1;1H");
-
-        // Clear the entire line
-        fprintf(out, "\033[2K");
-
-        // Output the top bar content with green color
-        fprintf(out, "\033[1;32m"); // Set green color
+        // Save the formatted top bar content
+        char buffer[1024];
         va_list args;
         va_start(args, fmt);
-        vfprintf(out, fmt, args);
+        vsnprintf(buffer, sizeof(buffer), fmt, args);
         va_end(args);
-        fprintf(out, "\033[0m"); // Reset color
+        top_bar_content = std::string(buffer);
+
+        // Move to top-left corner and update
+        fprintf(out, "\033[1;1H");        // Move to top-left corner (line 1)
+        fprintf(out, "\033[2K");          // Clear the entire line
+        fprintf(out, "\033[1;32m");       // Set green color
+        fprintf(out, "%s", buffer);       // Output the content
+        fprintf(out, "\033[0m");          // Reset color
 
         // Restore cursor position
         fprintf(out, "\033[u");
@@ -1162,8 +1170,7 @@ namespace console {
 
     void log(const char * fmt, ...) {
         if (fixed_top_mode) {
-            // In fixed top mode, output content normally without interfering with top bar
-            // The update_top_bar function will handle restoring cursor position properly
+            // Output normally, fixed top bar will be redrawn on next update
             va_list args;
             va_start(args, fmt);
             vfprintf(out, fmt, args);
