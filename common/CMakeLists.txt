@@ -81,6 +81,8 @@ add_library(${TARGET} STATIC
     sampling.h
     speculative.cpp
     speculative.h
+    statusbar.cpp
+    statusbar.h
     unicode.cpp
     unicode.h
     )
