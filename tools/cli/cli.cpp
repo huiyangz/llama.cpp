@@ -59,6 +59,11 @@ struct cli_context {
     // thread for showing "loading" animation
     std::atomic<bool> loading_show;
 
+    // Variables for real-time performance calculation
+    double prompt_n_last = 0;
+    double predicted_n_last = 0;
+    std::chrono::high_resolution_clock::time_point last_calc_time;
+
     cli_context(const common_params & params) : params(params) {
         defaults.sampling    = params.sampling;
         defaults.speculative = params.speculative;
@@ -70,6 +75,9 @@ struct cli_context {
         defaults.timings_per_token = true; // in order to get timings even when we cancel mid-way
         // defaults.return_progress = true; // TODO: show progress
         defaults.oaicompat_chat_syntax.reasoning_format = COMMON_REASONING_FORMAT_DEEPSEEK;
+
+        // Initialize timing variables
+        last_calc_time = std::chrono::high_resolution_clock::now();
     }
 
     std::string generate_completion(result_timings & out_timings) {
@@ -84,6 +92,11 @@ struct cli_context {
             task.cli_files = input_files; // copy
             rd.post_task({std::move(task)});
         }
+
+        // Initialize timing variables
+        last_calc_time = std::chrono::high_resolution_clock::now();
+        prompt_n_last = 0;
+        predicted_n_last = 0;
 
         // Initial update if fixed top mode is enabled
         if (params.fixed_top) {
@@ -115,11 +128,36 @@ struct cli_context {
             if (res_partial) {
                 out_timings = std::move(res_partial->timings);
 
-                // Update top bar with the latest metrics immediately when partial results are available
                 if (params.fixed_top) {
+                    // Calculate real-time metrics
+                    auto now = std::chrono::high_resolution_clock::now();
+                    std::chrono::duration<double> elapsed = now - last_calc_time;
+
+                    double prompt_speed = 0.0;
+                    double gen_speed = 0.0;
+
+                    if (elapsed.count() > 0) {
+                        // Prompt speed calculation
+                        double prompt_n_current = out_timings.prompt_n;
+                        double prompt_diff = prompt_n_current - prompt_n_last;
+                        prompt_speed = prompt_diff / elapsed.count();
+
+                        // Generation speed calculation
+                        double predicted_n_current = out_timings.predicted_n;
+                        double predict_diff = predicted_n_current - predicted_n_last;
+                        gen_speed = predict_diff / elapsed.count();
+                    }
+
+                    // Update last values and time
+                    if (elapsed.count() >= 0.5) { // Update at most every 0.5 seconds
+                        prompt_n_last = out_timings.prompt_n;
+                        predicted_n_last = out_timings.predicted_n;
+                        last_calc_time = now;
+                    }
+
                     console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s",
-                                           out_timings.prompt_per_second,
-                                           out_timings.predicted_per_second);
+                                           prompt_speed,
+                                           gen_speed);
                 }
 
                 for (const auto & diff : res_partial->oaicompat_msg_diffs) {
@@ -147,11 +185,20 @@ struct cli_context {
             auto res_final = dynamic_cast<server_task_result_cmpl_final *>(result.get());
             if (res_final) {
                 out_timings = std::move(res_final->timings);
+                // Calculate final metrics
+                auto now = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> elapsed = now - last_calc_time;
+                double final_prompt_speed = 0.0;
+                double final_gen_speed = 0.0;
+                if (elapsed.count() > 0) {
+                    final_prompt_speed = (out_timings.prompt_n - prompt_n_last) / elapsed.count();
+                    final_gen_speed = (out_timings.predicted_n - predicted_n_last) / elapsed.count();
+                }
                 // Update top bar one last time with final metrics
                 if (params.fixed_top) {
                     console::update_top_bar("Prompt: %.1f t/s | Generation: %.1f t/s",
-                                           out_timings.prompt_per_second,
-                                           out_timings.predicted_per_second);
+                                           final_prompt_speed,
+                                           final_gen_speed);
                 }
                 break;
             }
