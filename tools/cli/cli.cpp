@@ -133,19 +133,19 @@ struct cli_context {
                     auto now = std::chrono::high_resolution_clock::now();
                     std::chrono::duration<double> elapsed = now - last_calc_time;
 
-                    double prompt_speed = 0.0;
-                    double gen_speed = 0.0;
+                    double prompt_speed = out_timings.prompt_per_second; // Use average as fallback
+                    double gen_speed = out_timings.predicted_per_second; // Use average as fallback
 
                     if (elapsed.count() > 0) {
-                        // Prompt speed calculation
-                        double prompt_n_current = out_timings.prompt_n;
-                        double prompt_diff = prompt_n_current - prompt_n_last;
-                        prompt_speed = prompt_diff / elapsed.count();
-
                         // Generation speed calculation
                         double predicted_n_current = out_timings.predicted_n;
                         double predict_diff = predicted_n_current - predicted_n_last;
-                        gen_speed = predict_diff / elapsed.count();
+                        double real_gen_speed = predict_diff / elapsed.count();
+
+                        // Only use if meaningful (not zero or negative)
+                        if (real_gen_speed > 0.1) {
+                            gen_speed = real_gen_speed;
+                        }
                     }
 
                     // Update last values and time
